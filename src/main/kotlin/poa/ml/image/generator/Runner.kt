@@ -36,22 +36,18 @@ fun main() {
     val vgg19 = VGG19NeuralTransferModel("vgg_19.h5", 400, 400, 3)
 
     val contentImage = imageLoader.asMatrix(File("/Users/oleg1024/Downloads/1/photo_2021-05-28_17-36-39.jpg"))
+
+    contentImage[all(), point(0), all(), all()].divi(contentImage[all(), point(0), all(), all()].maxNumber())
+    contentImage[all(), point(1), all(), all()].divi(contentImage[all(), point(1), all(), all()].maxNumber())
+    contentImage[all(), point(2), all(), all()].divi(contentImage[all(), point(2), all(), all()].maxNumber())
+
     var img = contentImage.add(0.0)
 
-    contentImage[all(), point(0), all(), all()].subi(103.939)
-    contentImage[all(), point(1), all(), all()].subi(116.779)
-    contentImage[all(), point(2), all(), all()].subi(123.68)
-
-
-    val rand = Nd4j.rand(0.0, 128.0, CpuNativeRandom(), *contentImage.shape())
+    val rand = Nd4j.rand(0.0, 0.5, CpuNativeRandom(), *contentImage.shape())
     img.addi(rand)
     img[all(), point(0), all(), all()].divi(img[all(), point(0), all(), all()].maxNumber())
     img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
     img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
-    img.subi(0.5)
-    img[all(), point(0), all(), all()].muli(103.939 * 2)
-    img[all(), point(1), all(), all()].muli(116.779 * 2)
-    img[all(), point(2), all(), all()].muli(123.68 * 2)
 //    var img =
 //        FileInputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.deserialize(it) as INDArray }
 
@@ -64,10 +60,9 @@ fun main() {
     while (true) {
 
         val newImg = img.add(0)
-        newImg[all(), point(0), all(), all()].addi(103.939)
-        newImg[all(), point(1), all(), all()].addi(116.779)
-        newImg[all(), point(2), all(), all()].addi(123.68)
-        showImage(newImg)
+        newImg[all(), point(0), all(), all()].muli(103.939 * 2)
+        newImg[all(), point(1), all(), all()].muli(116.779 * 2)
+        newImg[all(), point(2), all(), all()].muli(123.68 * 2)
         showImage(Transforms.relu(newImg).mul(newImg.lt(256).castTo(DataType.DOUBLE)))
 
         for (i in 0 until 50) {
