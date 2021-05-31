@@ -18,17 +18,17 @@ import org.nd4j.linalg.api.ndarray.INDArray
 class CustomOutputLayer(
     conf: NeuralNetConfiguration,
     dataType: DataType,
-    private val scoreFn: (INDArray, INDArray) -> Double,
-    private val gradFn: (INDArray, INDArray) -> INDArray,
+    private val scoreFn: (INDArray, INDArray, LayerWorkspaceMgr) -> Double,
+    private val gradFn: (INDArray, INDArray, LayerWorkspaceMgr) -> INDArray,
 ) : OutputLayer(conf, dataType) {
 
     private val defaultGradient = DefaultGradient()
 
     override fun computeScore(fullNetRegTerm: Double, training: Boolean, workspaceMgr: LayerWorkspaceMgr): Double =
-        scoreFn(input, labels)
+        scoreFn(input, labels, workspaceMgr)
 
     override fun backpropGradient(epsilon: INDArray?, workspaceMgr: LayerWorkspaceMgr): Pair<Gradient, INDArray> =
-        Pair.of(defaultGradient, gradFn(input, labels))
+        Pair.of(defaultGradient, gradFn(input, labels, workspaceMgr))
 
     override fun activate(training: Boolean, workspaceMgr: LayerWorkspaceMgr?): INDArray? {
         return workspaceMgr!!.createUninitialized(ArrayType.ACTIVATIONS, DataType.DOUBLE, *input.shape())
@@ -37,8 +37,8 @@ class CustomOutputLayer(
 }
 
 class CustomOutputLayerConf(
-    private val scoreFn: (INDArray, INDArray) -> Double,
-    private val gradFn: (INDArray, INDArray) -> INDArray,
+    private val scoreFn: (INDArray, INDArray, LayerWorkspaceMgr) -> Double,
+    private val gradFn: (INDArray, INDArray, LayerWorkspaceMgr) -> INDArray,
 ) : org.deeplearning4j.nn.conf.layers.OutputLayer() {
     override fun instantiate(
         conf: NeuralNetConfiguration, trainingListeners: Collection<TrainingListener?>?,
