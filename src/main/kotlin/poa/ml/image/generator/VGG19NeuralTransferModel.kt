@@ -16,12 +16,13 @@ import org.deeplearning4j.nn.layers.FrozenLayerWithBackprop
 import org.deeplearning4j.nn.modelimport.keras.KerasModelImport
 import org.deeplearning4j.nn.transferlearning.FineTuneConfiguration
 import org.deeplearning4j.nn.transferlearning.TransferLearning
-import org.deeplearning4j.nn.workspace.ArrayType
 import org.deeplearning4j.nn.workspace.LayerWorkspaceMgr
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener
+import org.nd4j.autodiff.loss.LossReduce
+import org.nd4j.autodiff.samediff.SDVariable
+import org.nd4j.autodiff.samediff.SameDiff
 import org.nd4j.common.io.ClassPathResource
 import org.nd4j.common.primitives.Pair
-import org.nd4j.linalg.activations.impl.ActivationIdentity
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.indexing.NDArrayIndex.all
@@ -38,15 +39,18 @@ class VGG19NeuralTransferModel(
     private var inputGradient: INDArray? = null
 
     private val vgg19: ComputationGraph
-    private val contentLayer = LayerInfo("block5_conv4", 25, 25, 512)
-    private val stylesLayers = listOf(
+    val contentLayer = LayerInfo("block5_conv4", 25, 25, 512)
+    val stylesLayers = listOf(
         LayerInfo("block1_conv1", 400, 400, 64),
         LayerInfo("block2_conv1", 200, 200, 128),
         LayerInfo("block3_conv1", 100, 100, 256),
         LayerInfo("block4_conv1", 50, 50, 512),
         LayerInfo("block5_conv1", 25, 25, 512)
     )
-    private val loss2 = LossL2()
+
+    fun getLabelSize() = stylesLayers.toMutableList().apply { add(contentLayer) }
+        .map { it.flattenSize() }
+        .reduce { i1, i2 -> i1 + i2 }
 
     init {
 
@@ -82,7 +86,7 @@ class VGG19NeuralTransferModel(
         vgg19 = preBuild
             .addLayer(
                 "outputs",
-                CustomOutputLayerConf(::score, ::gradient),
+                CustomOutputLayerConf(::score),
                 *stylesLayers.toMutableList().apply { add(contentLayer) }.map { it.flattenName() }.toTypedArray()
             )
             .setOutputs("outputs")
@@ -133,44 +137,32 @@ class VGG19NeuralTransferModel(
         return vgg19.feedForward(img, false)
     }
 
-    private fun score(input: INDArray, labels: INDArray, m: LayerWorkspaceMgr): Double {
-        val (content, style) = contentAndStyles(input)
-        return loss2.computeScore(content.array, labels, ActivationIdentity(), Nd4j.ones(*labels.shape()), true)
-            .div(content.info.flattenSize() * 4)
+    private fun score(sameDiff: SameDiff, input: SDVariable, labels: SDVariable): SDVariable {
+        val (content, styles) = contentAndStyles(input)
+        return sameDiff.loss.meanSquaredError(labels, input.mul(sameDiff.`var`(content.mask)), null, LossReduce.SUM)
+            .div(content.info.flattenSize() * 4.0)
     }
 
-    private fun gradient(input: INDArray, labels: INDArray, m: LayerWorkspaceMgr): INDArray {
-        val (content, style) = contentAndStyles(input)
-        val epsilon = m.create(ArrayType.ACTIVATION_GRAD, input.dataType(), *input.shape())
-        val contentGradient = loss2.computeGradient(content.array,
-            labels,
-            ActivationIdentity(),
-            Nd4j.ones(*content.array.shape()))
-            .div(content.info.flattenSize() * 4)
-        epsilon[all(), interval(content.beginIdx, content.tillIdx)].assign(contentGradient)
-        return epsilon
-
-    }
-
-
-    private fun contentAndStyles(input: INDArray): kotlin.Pair<InputSlice, List<InputSlice>> {
+    private fun contentAndStyles(input: SDVariable): kotlin.Pair<InputSlice, List<InputSlice>> {
         val styles = mutableListOf<InputSlice>()
         var beginIdx = 0L
         for (styleLayer in stylesLayers) {
             val till = beginIdx + styleLayer.flattenSize()
-            val slice = input[all(), interval(beginIdx, till)]
-            styles.add(InputSlice(slice, beginIdx, till, styleLayer))
+            val mask = Nd4j.zeros(1, getLabelSize())
+            mask[all(), interval(beginIdx, till)].assign(1)
+            styles.add(InputSlice(mask, beginIdx, till, styleLayer))
             beginIdx = till
         }
-        val slice = input[all(), interval(beginIdx, input.size(1))]
-        val content = InputSlice(slice, beginIdx, input.size(1), contentLayer)
+        val mask = Nd4j.zeros(1, getLabelSize())
+        mask[all(), interval(beginIdx, beginIdx + contentLayer.flattenSize())].assign(1)
+        val content = InputSlice(mask, beginIdx, beginIdx + contentLayer.flattenSize(), contentLayer)
         return content to styles
     }
 
 }
 
 
-private data class LayerInfo(
+data class LayerInfo(
     val name: String,
     val height: Long,
     val width: Long,
@@ -182,7 +174,7 @@ private data class LayerInfo(
 }
 
 private data class InputSlice(
-    val array: INDArray,
+    val mask: INDArray,
     val beginIdx: Long,
     val tillIdx: Long,
     val info: LayerInfo,

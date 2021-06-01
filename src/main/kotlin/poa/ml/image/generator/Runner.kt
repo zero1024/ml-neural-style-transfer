@@ -41,15 +41,13 @@ fun main() {
     contentImage[all(), point(1), all(), all()].divi(contentImage[all(), point(1), all(), all()].maxNumber())
     contentImage[all(), point(2), all(), all()].divi(contentImage[all(), point(2), all(), all()].maxNumber())
 
-//    var img = contentImage.add(0.0)
-//
-//    val rand = Nd4j.rand(0.1, 0.9, CpuNativeRandom(), *contentImage.shape())
-//    val ran2 = Nd4j.rand(0.1, 0.9, CpuNativeRandom(), *contentImage.shape())
-//    img.addi(rand)
-//    img.subi(ran2)
-//    img[all(), point(0), all(), all()].divi(img[all(), point(0), all(), all()].maxNumber())
-//    img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
-//    img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
+    var img = contentImage.add(0.0)
+
+    val rand = Nd4j.rand(0.1, 0.9, CpuNativeRandom(), *contentImage.shape())
+    img.addi(rand)
+    img[all(), point(0), all(), all()].divi(img[all(), point(0), all(), all()].maxNumber())
+    img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
+    img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
 
     //0.01719984130859375
 //    var img = Nd4j.rand(*contentImage.shape())
@@ -57,11 +55,14 @@ fun main() {
 //    img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
 //    img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
 
-    var img =
-        FileInputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.deserialize(it) as INDArray }
+//    var img =
+//        FileInputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.deserialize(it) as INDArray }
 
 
     val label = vgg19.feedForward(contentImage)["block5_conv4"]!!
+    val label2D = Nd4j.create(label.size(0), vgg19.getLabelSize())
+    label2D[all(), interval(label2D.size(1) - vgg19.contentLayer.flattenSize(), label2D.size(1))]
+        .assign(labels2d(label))
 
     val updater =
         Adam(0.03).instantiate(mapOf("M" to Nd4j.create(*img.shape()), "V" to Nd4j.create(*img.shape())), true)
@@ -74,11 +75,11 @@ fun main() {
         newImg[all(), point(2), all(), all()].muli(123.68 * 2)
         showImage(Transforms.relu(newImg).mul(newImg.lt(256).castTo(DataType.DOUBLE)))
 
-        for (i in 0 until 100) {
-            val res = vgg19.getInputGradient(img, labels2d(label))
+        for (i in 0 until 10) {
+            val res = vgg19.getInputGradient(img, label2D)
 //            res.negi()
             updater.applyUpdater(res, i, 0)
-            img = img.add(updater.state["M"]!!)
+            img = img.sub(updater.state["M"]!!)
         }
         FileOutputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.serialize(img, it) }
     }
