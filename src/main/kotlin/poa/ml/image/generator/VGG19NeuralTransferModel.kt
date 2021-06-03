@@ -27,7 +27,6 @@ import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.indexing.NDArrayIndex.all
 import org.nd4j.linalg.indexing.NDArrayIndex.interval
-import org.nd4j.linalg.lossfunctions.impl.LossL2
 
 class VGG19NeuralTransferModel(
     h5Path: String,
@@ -39,16 +38,16 @@ class VGG19NeuralTransferModel(
     private var inputGradient: INDArray? = null
 
     private val vgg19: ComputationGraph
-    val contentLayer = LayerInfo("block5_conv4", 25, 25, 512)
+    val contentLayer = ContentLayerInfo("block5_conv4", 25, 25, 512)
     val stylesLayers = listOf(
-        LayerInfo("block1_conv1", 400, 400, 64),
-        LayerInfo("block2_conv1", 200, 200, 128),
-        LayerInfo("block3_conv1", 100, 100, 256),
-        LayerInfo("block4_conv1", 50, 50, 512),
-        LayerInfo("block5_conv1", 25, 25, 512)
+        StyleLayerInfo("block1_conv1", 400, 400, 64),
+        StyleLayerInfo("block2_conv1", 200, 200, 128),
+        StyleLayerInfo("block3_conv1", 100, 100, 256),
+        StyleLayerInfo("block4_conv1", 50, 50, 512),
+        StyleLayerInfo("block5_conv1", 25, 25, 512)
     )
 
-    fun getLabelSize() = stylesLayers.toMutableList().apply { add(contentLayer) }
+    fun getLabelSize() = stylesLayers.toMutableList<LayerInfo>().apply { add(contentLayer) }
         .map { it.flattenSize() }
         .reduce { i1, i2 -> i1 + i2 }
 
@@ -71,9 +70,9 @@ class VGG19NeuralTransferModel(
             .removeVertexKeepConnections("block5_pool")
 
         for (l in stylesLayers) {
-            preBuild.addVertex(
+            preBuild.addLayer(
                 l.flattenName(),
-                PreprocessorVertex(CnnToFeedForwardPreProcessor(l.height, l.width, l.nChannels)),
+                CustomLayerConf(),
                 l.name)
         }
         preBuild.addVertex(
@@ -87,7 +86,8 @@ class VGG19NeuralTransferModel(
             .addLayer(
                 "outputs",
                 CustomOutputLayerConf(::score),
-                *stylesLayers.toMutableList().apply { add(contentLayer) }.map { it.flattenName() }.toTypedArray()
+                *stylesLayers.toMutableList<LayerInfo>().apply { add(contentLayer) }.map { it.flattenName() }
+                    .toTypedArray()
             )
             .setOutputs("outputs")
             .build()
@@ -162,15 +162,35 @@ class VGG19NeuralTransferModel(
 }
 
 
-data class LayerInfo(
+abstract class LayerInfo(
     val name: String,
     val height: Long,
     val width: Long,
     val nChannels: Long,
 ) {
     fun flattenName() = "${name}_flattened"
-    fun flattenSize() = height * width * nChannels
+    abstract fun flattenSize(): Long
 
+}
+
+class ContentLayerInfo(
+    name: String,
+    height: Long,
+    width: Long,
+    nChannels: Long,
+) : LayerInfo(name, height, width, nChannels
+) {
+    override fun flattenSize() = height * width * nChannels
+}
+
+class StyleLayerInfo(
+    name: String,
+    height: Long,
+    width: Long,
+    nChannels: Long,
+) : LayerInfo(name, height, width, nChannels
+) {
+    override fun flattenSize() = nChannels * nChannels
 }
 
 private data class InputSlice(
