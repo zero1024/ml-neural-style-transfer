@@ -27,6 +27,7 @@ import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.indexing.NDArrayIndex.all
 import org.nd4j.linalg.indexing.NDArrayIndex.interval
+import kotlin.math.pow
 
 class VGG19NeuralTransferModel(
     h5Path: String,
@@ -35,6 +36,8 @@ class VGG19NeuralTransferModel(
     nChannels: Long,
 ) {
 
+    val alpha = 10.0
+    val betta = 40.0
     private var inputGradient: INDArray? = null
 
     private val vgg19: ComputationGraph
@@ -133,17 +136,54 @@ class VGG19NeuralTransferModel(
         return inputGradient!!
     }
 
-    fun feedForward(img: INDArray): Map<String, INDArray> {
-        return vgg19.feedForward(img, false)
+    fun toLabel(contentImg: INDArray, styleImg: INDArray): INDArray {
+        val label2D = Nd4j.create(1, getLabelSize())
+
+        val (contentSlice, styleSlices) = contentAndStyles()
+
+        val styleActivations = vgg19.feedForward(styleImg, false)
+        for (styleSlice in styleSlices) {
+            val styleLabel = styleActivations[styleSlice.info.flattenName()]
+            label2D[all(), interval(styleSlice.beginIdx, styleSlice.tillIdx)]
+                .assign(styleLabel)
+        }
+
+        val contentActivations = vgg19.feedForward(contentImg, false)
+        val contentLabel = contentActivations[contentSlice.info.flattenName()]
+        label2D[all(), interval(contentSlice.beginIdx, contentSlice.tillIdx)]
+            .assign(contentLabel)
+
+        return label2D
+
     }
 
     private fun score(sameDiff: SameDiff, input: SDVariable, labels: SDVariable): SDVariable {
-        val (content, styles) = contentAndStyles(input)
-        return sameDiff.loss.meanSquaredError(labels, input.mul(sameDiff.`var`(content.mask)), null, LossReduce.SUM)
+        val (content, styles) = contentAndStyles()
+
+        var res = sameDiff.loss.meanSquaredError(
+            sameDiff.applyMask(labels, content.mask),
+            sameDiff.applyMask(input, content.mask),
+            null,
+            LossReduce.SUM)
+            .mul(alpha)
             .div(content.info.flattenSize() * 4.0)
+
+        for (style in styles) {
+            val styleRes = sameDiff.loss.meanSquaredError(
+                sameDiff.applyMask(labels, style.mask),
+                sameDiff.applyMask(input, style.mask),
+                null,
+                LossReduce.SUM)
+                .mul((style.info as StyleLayerInfo).weight)
+                .mul(betta)
+                .div((0.0 + style.info.height * style.info.width * style.info.nChannels).pow(2.0) * 4.0)
+            res = res.add(styleRes)
+        }
+
+        return res
     }
 
-    private fun contentAndStyles(input: SDVariable): kotlin.Pair<InputSlice, List<InputSlice>> {
+    fun contentAndStyles(): kotlin.Pair<InputSlice, List<InputSlice>> {
         val styles = mutableListOf<InputSlice>()
         var beginIdx = 0L
         for (styleLayer in stylesLayers) {
@@ -188,12 +228,13 @@ class StyleLayerInfo(
     height: Long,
     width: Long,
     nChannels: Long,
+    val weight: Double = 0.2,
 ) : LayerInfo(name, height, width, nChannels
 ) {
     override fun flattenSize() = nChannels * nChannels
 }
 
-private data class InputSlice(
+data class InputSlice(
     val mask: INDArray,
     val beginIdx: Long,
     val tillIdx: Long,

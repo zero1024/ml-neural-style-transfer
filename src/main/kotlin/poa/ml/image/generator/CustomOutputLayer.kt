@@ -11,18 +11,7 @@ import org.nd4j.linalg.api.ndarray.INDArray
 
 class CustomLayerConf(private val mb: Long = 1) : SameDiffLambdaLayer() {
 
-    override fun defineLayer(sameDiff: SameDiff, input: SDVariable): SDVariable {
-        val nChannels = input.shape[1]
-        val height = input.shape[2]
-        val width = input.shape[3]
-        val gramMatrices = (0 until mb).map {
-            val channelsInput = input[point(it)].reshape(nChannels, height * width)
-            val gram = sameDiff.mmul(channelsInput, sameDiff.transpose(channelsInput))
-            gram.reshape(nChannels * nChannels)
-        }.toTypedArray()
-        return sameDiff.stack(0, *gramMatrices)
-
-    }
+    override fun defineLayer(sameDiff: SameDiff, input: SDVariable) = sameDiff.convGramMatrix(mb, input)
 
     override fun getOutputType(layerIndex: Int, inputType: InputType): InputType {
         inputType as InputType.InputTypeConvolutional
