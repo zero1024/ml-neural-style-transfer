@@ -15,6 +15,7 @@ import java.awt.image.BufferedImage
 import java.awt.image.BufferedImage.TYPE_INT_RGB
 import java.io.File
 import javax.imageio.ImageIO
+import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("main")
 
@@ -49,8 +50,8 @@ fun main(args: Array<String>) {
         logger.info("Found [${f.name}]")
         val content = imageLoader.asMatrix(f)
         scaleToZeroOne(content)
-        val height = content.size(2).toInt()
-        val width = content.size(3).toInt()
+        val origHeight = content.size(2).toInt()
+        val origWidth = content.size(3).toInt()
         val resizedContent = imageLoader.resize(content, 400, 400)
 
         for ((styleName, style) in styles) {
@@ -71,6 +72,7 @@ fun main(args: Array<String>) {
                 img = img.sub(res)
             }
 
+            val (height, width) = chooseReasonableSize(origHeight, origWidth)
             val newImg = imageLoader.resize(scaleTo255(img), width, height)
             val outFilePath = "${outDir}/${f.nameWithoutExtension}-${styleName}.jpg"
             logger.info("Saving [${outFilePath}]...")
@@ -79,6 +81,13 @@ fun main(args: Array<String>) {
         }
 
     }
+}
+
+private fun chooseReasonableSize(height: Int, width: Int): Pair<Int, Int> {
+    val minSize = min(height, width)
+    val reasonableMax = min(minSize, 500)
+    val scale: Double = minSize.toDouble() / reasonableMax
+    return (height.toDouble() / scale).toInt() to (width.toDouble() / scale).toInt()
 }
 
 private fun scaleTo255(img: INDArray): INDArray {
