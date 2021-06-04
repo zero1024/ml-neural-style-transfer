@@ -1,114 +1,102 @@
 package poa.ml.image.generator
 
-import org.apache.commons.lang3.SerializationUtils
 import org.datavec.image.loader.NativeImageLoader
-import org.nd4j.linalg.api.buffer.DataType
 import org.nd4j.linalg.api.ndarray.INDArray
-import org.nd4j.linalg.cpu.nativecpu.rng.CpuNativeRandom
 import org.nd4j.linalg.factory.Nd4j
-import org.nd4j.linalg.indexing.NDArrayIndex.*
+import org.nd4j.linalg.indexing.NDArrayIndex.all
+import org.nd4j.linalg.indexing.NDArrayIndex.point
+import org.nd4j.linalg.indexing.conditions.GreaterThan
+import org.nd4j.linalg.indexing.conditions.LessThan
 import org.nd4j.linalg.learning.config.Adam
-import org.nd4j.linalg.ops.transforms.Transforms
-import org.nd4j.rng.NativeRandom
+import org.slf4j.LoggerFactory
+import poa.ml.image.generator.model.VGG19NeuralTransferModel
 import java.awt.Color
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Toolkit
 import java.awt.image.BufferedImage
 import java.awt.image.BufferedImage.TYPE_INT_RGB
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import javax.imageio.ImageIO
-import javax.swing.ImageIcon
-import javax.swing.JFrame
-import javax.swing.JLabel
-import javax.swing.WindowConstants
 
-fun main() {
-    val imageLoader = NativeImageLoader(400, 400, 3)
+private val logger = LoggerFactory.getLogger("root")
 
+fun main(args: Array<String>) {
 
-    val vgg19 = VGG19NeuralTransferModel("vgg_19.h5", 400, 400, 3)
+    val contentDir = args[0]
+    val styleDir = args[1]
+    val outDir = args[2]
+    val iterations = args.getOrElse(3) { "15" }.toInt()
 
-    val contentImage = imageLoader.asMatrix(File("/Users/oleg1024/Downloads/content.jpg"))
-    contentImage[all(), point(0), all(), all()].divi(contentImage[all(), point(0), all(), all()].maxNumber())
-    contentImage[all(), point(1), all(), all()].divi(contentImage[all(), point(1), all(), all()].maxNumber())
-    contentImage[all(), point(2), all(), all()].divi(contentImage[all(), point(2), all(), all()].maxNumber())
+    val imageLoader = NativeImageLoader()
+    val vgg19 = VGG19NeuralTransferModel("vgg_19.h5")
 
-    val styleImage = imageLoader.asMatrix(File("/Users/oleg1024/Downloads/style.jpeg"))
-    styleImage[all(), point(0), all(), all()].divi(styleImage[all(), point(0), all(), all()].maxNumber())
-    styleImage[all(), point(1), all(), all()].divi(styleImage[all(), point(1), all(), all()].maxNumber())
-    styleImage[all(), point(2), all(), all()].divi(styleImage[all(), point(2), all(), all()].maxNumber())
-
-    var img = contentImage.add(0.0)
-    val rand = Nd4j.rand(0.0, 0.5, CpuNativeRandom(), *contentImage.shape())
-    img.addi(rand)
-    img[all(), point(0), all(), all()].divi(img[all(), point(0), all(), all()].maxNumber())
-    img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
-    img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
-
-    //0.01719984130859375
-//    var img = Nd4j.rand(*contentImage.shape())
-//    img[all(), point(0), all(), all()].divi(img[all(), point(0), all(), all()].maxNumber())
-//    img[all(), point(1), all(), all()].divi(img[all(), point(1), all(), all()].maxNumber())
-//    img[all(), point(2), all(), all()].divi(img[all(), point(2), all(), all()].maxNumber())
-
-//    var img =
-//        FileInputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.deserialize(it) as INDArray }
-
-
-    val label = vgg19.toLabel(contentImage, styleImage)
-
-    val updater =
-        Adam(0.03).instantiate(mapOf("M" to Nd4j.create(*img.shape()), "V" to Nd4j.create(*img.shape())), true)
-
-    while (true) {
-
-        val newImg = img.add(0)
-        newImg[all(), point(0), all(), all()].muli(103.939 * 2)
-        newImg[all(), point(1), all(), all()].muli(116.779 * 2)
-        newImg[all(), point(2), all(), all()].muli(123.68 * 2)
-        showImage(Transforms.relu(newImg).mul(newImg.lt(256).castTo(DataType.DOUBLE)))
-
-        for (i in 0 until 50) {
-            val res = vgg19.getInputGradient(img, label)
-            updater.applyUpdater(res, i, 0)
-            img = img.sub(res)
-        }
-        FileOutputStream(File("/Users/oleg1024/Downloads/some")).use { SerializationUtils.serialize(img, it) }
+    val styles = mutableMapOf<String, INDArray>()
+    walkFileTree(styleDir) { f ->
+        val style = imageLoader.asMatrix(f)
+        scaleToZeroOne(style)
+        val resizedStyle = imageLoader.resize(style, 400, 400)
+        styles[f.nameWithoutExtension] = resizedStyle
     }
 
+    walkFileTree(contentDir) { f ->
+        val content = imageLoader.asMatrix(f)
+        scaleToZeroOne(content)
+        val height = content.size(2).toInt()
+        val width = content.size(3).toInt()
+        val resizedContent = imageLoader.resize(content, 400, 400)
+
+        for ((styleName, style) in styles) {
+            val label = vgg19.toLabel(resizedContent, style)
+            val updater =
+                Adam(0.03).instantiate(mapOf(
+                    "M" to Nd4j.create(*resizedContent.shape()),
+                    "V" to Nd4j.create(*resizedContent.shape())),
+                    true)
+
+            var img = resizedContent.add(0.0)
+
+            for (i in 0 until iterations) {
+                val res = vgg19.inputGradient(img, label)
+                updater.applyUpdater(res, i, 0)
+                img = img.sub(res)
+            }
+
+            val newImg = imageLoader.resize(scaleTo255(img), width, height)
+            saveImage("${outDir}/${f.nameWithoutExtension}-${styleName}.jpg", newImg)
+
+
+        }
+
+    }
 }
 
+private fun scaleTo255(img: INDArray): INDArray {
+    val newImg = img.add(0)
+    newImg[all(), point(0), all(), all()].muli(255)
+    newImg[all(), point(1), all(), all()].muli(255)
+    newImg[all(), point(2), all(), all()].muli(255)
+    newImg.replaceWhere(Nd4j.create(*img.shape()).assign(255), GreaterThan(255))
+    newImg.replaceWhere(Nd4j.create(*img.shape()).assign(0), LessThan(0))
+    return newImg
+}
 
-private fun showImage(img: INDArray) {
-    val bufImage = BufferedImage(400, 400, TYPE_INT_RGB)
+private fun scaleToZeroOne(styleImg: INDArray) {
+    styleImg[all(), point(0), all(), all()].divi(255)
+    styleImg[all(), point(1), all(), all()].divi(255)
+    styleImg[all(), point(2), all(), all()].divi(255)
+}
 
-    for (w in 0 until 400) {
-        for (h in 0 until 400) {
+private fun saveImage(path: String, img: INDArray) {
+    val height = img.size(2).toInt()
+    val width = img.size(3).toInt()
+    val bufImage = BufferedImage(width, height, TYPE_INT_RGB)
+
+    for (w in 0 until width) {
+        for (h in 0 until height) {
             val r = img.getScalar(0, 0, h, w).maxNumber().toInt()
             val g = img.getScalar(0, 1, h, w).maxNumber().toInt()
             val b = img.getScalar(0, 2, h, w).maxNumber().toInt()
             bufImage.setRGB(w, h, Color(b, g, r).rgb)
         }
     }
-    ImageIO.write(bufImage, "jpg", File("/Users/oleg1024/Downloads/some.jpg"))
-    showImage(bufImage)
-}
 
-fun showImage(image: BufferedImage, lambda: (JFrame) -> Unit = {}) {
-    showJLabel(JLabel(ImageIcon(image)), lambda)
-}
-
-fun showJLabel(jLabel: JLabel, lambda: (JFrame) -> Unit = {}) {
-    val frame = JFrame()
-    val dim: Dimension = Toolkit.getDefaultToolkit().screenSize
-    frame.contentPane.layout = FlowLayout()
-    frame.contentPane.add(jLabel)
-    frame.defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
-    lambda(frame)
-    frame.pack()
-    frame.setLocation(dim.width / 2 - frame.size.width / 2, dim.height / 2 - frame.size.height / 2)
-    frame.isVisible = true
+    ImageIO.write(bufImage, "jpg", File(path))
 }
