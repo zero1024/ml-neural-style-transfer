@@ -38,7 +38,7 @@ class VGG19NeuralTransferModel(
     vgg19path: String,
     mb: Long = 1,
     private val alpha: Double = 10.0,
-    private val betta: Double = 40.0,
+    private val betta: Double = 10.0,
 ) : NeuralTransferModel {
 
 
@@ -96,8 +96,6 @@ class VGG19NeuralTransferModel(
             )
             .setOutputs("outputs")
             .build()
-
-        model.addListeners(ScoreIterationListener(1))
 
         for (layer in model.layers) {
             if (layer is org.deeplearning4j.nn.layers.convolution.subsampling.SubsamplingLayer) {

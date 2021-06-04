@@ -16,7 +16,7 @@ import java.awt.image.BufferedImage.TYPE_INT_RGB
 import java.io.File
 import javax.imageio.ImageIO
 
-private val logger = LoggerFactory.getLogger("root")
+private val logger = LoggerFactory.getLogger("main")
 
 fun main(args: Array<String>) {
 
@@ -24,10 +24,17 @@ fun main(args: Array<String>) {
     val styleDir = args[1]
     val outDir = args[2]
     val iterations = args.getOrElse(3) { "15" }.toInt()
+    val alpha = args.getOrElse(4) { "10.0" }.toDouble()
+    val betta = args.getOrElse(5) { "10.0" }.toDouble()
+    val lr = args.getOrElse(6) { "0.03" }.toDouble()
+
+
+    logger.info("Starting neural style transferring with parameters: ${args.toList()}")
 
     val imageLoader = NativeImageLoader()
-    val vgg19 = VGG19NeuralTransferModel("vgg_19.h5")
+    val vgg19 = VGG19NeuralTransferModel("vgg_19.h5", alpha = alpha, betta = betta)
 
+    logger.info("Loading styles...")
     val styles = mutableMapOf<String, INDArray>()
     walkFileTree(styleDir) { f ->
         val style = imageLoader.asMatrix(f)
@@ -35,8 +42,11 @@ fun main(args: Array<String>) {
         val resizedStyle = imageLoader.resize(style, 400, 400)
         styles[f.nameWithoutExtension] = resizedStyle
     }
+    logger.info("Styles ${styles.keys} are loaded.")
 
+    logger.info("Walking through content directory...")
     walkFileTree(contentDir) { f ->
+        logger.info("Found [${f.name}]")
         val content = imageLoader.asMatrix(f)
         scaleToZeroOne(content)
         val height = content.size(2).toInt()
@@ -44,9 +54,10 @@ fun main(args: Array<String>) {
         val resizedContent = imageLoader.resize(content, 400, 400)
 
         for ((styleName, style) in styles) {
+            logger.info("Applying style [${styleName}] to [${f.nameWithoutExtension}]")
             val label = vgg19.toLabel(resizedContent, style)
             val updater =
-                Adam(0.03).instantiate(mapOf(
+                Adam(lr).instantiate(mapOf(
                     "M" to Nd4j.create(*resizedContent.shape()),
                     "V" to Nd4j.create(*resizedContent.shape())),
                     true)
@@ -54,15 +65,17 @@ fun main(args: Array<String>) {
             var img = resizedContent.add(0.0)
 
             for (i in 0 until iterations) {
+                logger.info("Iteration $i")
                 val res = vgg19.inputGradient(img, label)
                 updater.applyUpdater(res, i, 0)
                 img = img.sub(res)
             }
 
             val newImg = imageLoader.resize(scaleTo255(img), width, height)
-            saveImage("${outDir}/${f.nameWithoutExtension}-${styleName}.jpg", newImg)
-
-
+            val outFilePath = "${outDir}/${f.nameWithoutExtension}-${styleName}.jpg"
+            logger.info("Saving [${outFilePath}]...")
+            saveImage(outFilePath, newImg)
+            logger.info("Saving done.")
         }
 
     }

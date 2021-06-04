@@ -10,7 +10,10 @@ class RunnerTest {
         val style = "/Users/oleg1024/Downloads/style"
         val out = "/Users/oleg1024/Downloads/out"
 
-        main(arrayOf(content, style, out))
+        val alpha = "10"
+        val betta = "10"
+
+        main(arrayOf(content, style, out, "15", alpha, betta))
 
     }
 }
