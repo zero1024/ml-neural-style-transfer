@@ -1,5 +1,6 @@
 package poa.ml.image.generator.model
 
+import org.datavec.image.loader.NativeImageLoader
 import org.deeplearning4j.nn.conf.CNN2DFormat
 import org.deeplearning4j.nn.conf.graph.PreprocessorVertex
 import org.deeplearning4j.nn.conf.inputs.InputType
@@ -24,14 +25,17 @@ import org.nd4j.common.io.ClassPathResource
 import org.nd4j.common.primitives.Pair
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
-import org.nd4j.linalg.indexing.NDArrayIndex.all
-import org.nd4j.linalg.indexing.NDArrayIndex.interval
+import org.nd4j.linalg.indexing.NDArrayIndex
+import org.nd4j.linalg.indexing.NDArrayIndex.*
+import org.nd4j.linalg.indexing.conditions.GreaterThan
+import org.nd4j.linalg.indexing.conditions.LessThan
 import poa.ml.image.generator.applyMask
 import poa.ml.image.generator.model.conf.GramMatrixLayerConf
 import poa.ml.image.generator.model.conf.SameDiffLambdaOutputLayerConf
 import poa.ml.image.generator.model.layer.ContentNeuralTransferLayerInfo
 import poa.ml.image.generator.model.layer.NeuralTransferLayerInfo
 import poa.ml.image.generator.model.layer.StyleNeuralTransferLayerInfo
+import poa.ml.image.generator.resize
 import kotlin.math.pow
 
 class VGG19NeuralTransferModel(
@@ -42,6 +46,7 @@ class VGG19NeuralTransferModel(
 ) : NeuralTransferModel {
 
 
+    private val imageLoader = NativeImageLoader()
     private var inputGradient: INDArray? = null
     private val model: ComputationGraph
 
@@ -127,6 +132,24 @@ class VGG19NeuralTransferModel(
                 return res
             }
         }
+    }
+
+    override fun scaleForModel(img: INDArray): INDArray {
+        val res = imageLoader.resize(img, width.toInt(), height.toInt())
+        res[all(), point(0), all(), all()].divi(255)
+        res[all(), point(1), all(), all()].divi(255)
+        res[all(), point(2), all(), all()].divi(255)
+        return res
+    }
+
+    override fun rescaleBack(img: INDArray, width: Int, height: Int): INDArray {
+        val res = imageLoader.resize(img, width, height)
+        res[all(), point(0), all(), all()].muli(255)
+        res[all(), point(1), all(), all()].muli(255)
+        res[all(), point(2), all(), all()].muli(255)
+        res.replaceWhere(Nd4j.create(*res.shape()).assign(255), GreaterThan(255))
+        res.replaceWhere(Nd4j.create(*res.shape()).assign(0), LessThan(0))
+        return res
     }
 
     override fun score() = model.score()

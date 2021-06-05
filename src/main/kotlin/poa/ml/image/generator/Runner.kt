@@ -3,10 +3,6 @@ package poa.ml.image.generator
 import org.datavec.image.loader.NativeImageLoader
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
-import org.nd4j.linalg.indexing.NDArrayIndex.all
-import org.nd4j.linalg.indexing.NDArrayIndex.point
-import org.nd4j.linalg.indexing.conditions.GreaterThan
-import org.nd4j.linalg.indexing.conditions.LessThan
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
 import poa.ml.image.generator.model.VGG19NeuralTransferModel
@@ -40,8 +36,7 @@ fun main(args: Array<String>) {
     val styles = mutableMapOf<String, INDArray>()
     walkFileTree(styleDir) { f ->
         val style = imageLoader.asMatrix(f)
-        scaleToZeroOne(style)
-        val resizedStyle = imageLoader.resize(style, 400, 400)
+        val resizedStyle = vgg19.scaleForModel(style)
         styles[f.nameWithoutExtension] = resizedStyle
     }
     logger.info("Styles ${styles.keys} are loaded.")
@@ -50,10 +45,9 @@ fun main(args: Array<String>) {
     walkFileTree(contentDir) { f ->
         logger.info("Found [${f.name}]")
         val content = imageLoader.asMatrix(f)
-        scaleToZeroOne(content)
         val origHeight = content.size(2).toInt()
         val origWidth = content.size(3).toInt()
-        val resizedContent = imageLoader.resize(content, 400, 400)
+        val resizedContent = vgg19.scaleForModel(content)
 
         for ((styleName, style) in styles) {
             logger.info("Applying style [${styleName}] to [${f.nameWithoutExtension}]")
@@ -73,7 +67,7 @@ fun main(args: Array<String>) {
                 img = img.sub(res)
                 if (saveEvery.contains(i) || i + 1 == iterations) {
                     val (height, width) = chooseReasonableSize(origHeight, origWidth)
-                    val newImg = imageLoader.resize(scaleTo255(img), width, height)
+                    val newImg = vgg19.rescaleBack(img, width, height)
                     val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
                     logger.info("Saving [${outFilePath}]...")
                     saveImage(outFilePath, newImg)
@@ -93,21 +87,6 @@ private fun chooseReasonableSize(height: Int, width: Int): Pair<Int, Int> {
     return (height.toDouble() / scale).toInt() to (width.toDouble() / scale).toInt()
 }
 
-private fun scaleTo255(img: INDArray): INDArray {
-    val newImg = img.add(0)
-    newImg[all(), point(0), all(), all()].muli(255)
-    newImg[all(), point(1), all(), all()].muli(255)
-    newImg[all(), point(2), all(), all()].muli(255)
-    newImg.replaceWhere(Nd4j.create(*img.shape()).assign(255), GreaterThan(255))
-    newImg.replaceWhere(Nd4j.create(*img.shape()).assign(0), LessThan(0))
-    return newImg
-}
-
-private fun scaleToZeroOne(styleImg: INDArray) {
-    styleImg[all(), point(0), all(), all()].divi(255)
-    styleImg[all(), point(1), all(), all()].divi(255)
-    styleImg[all(), point(2), all(), all()].divi(255)
-}
 
 private fun saveImage(path: String, img: INDArray) {
     val height = img.size(2).toInt()
