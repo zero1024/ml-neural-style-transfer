@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     val styleDir = args[1]
     val outDir = args[2]
     val iterations = args.getOrElse(3) { "50" }.toInt()
-    val saveEvery = args.getOrElse(4) { "10" }.toInt()
+    val saveEvery = args.getOrElse(4) { "" }.split(".").map { it.toInt() }
     val alpha = args.getOrElse(5) { "10.0" }.toDouble()
     val betta = args.getOrElse(6) { "10.0" }.toDouble()
     val lr = args.getOrElse(7) { "0.03" }.toDouble()
@@ -66,20 +66,20 @@ fun main(args: Array<String>) {
 
             var img = resizedContent.add(0.0)
 
-            for (i in 0 until iterations / saveEvery) {
-                for (j in 0 until saveEvery) {
-                    val ij = (i * 5) + j
-                    val res = vgg19.inputGradient(img, label)
-                    logger.info("Iteration $ij. Score - ${vgg19.score()}")
-                    updater.applyUpdater(res, ij, 0)
-                    img = img.sub(res)
+            for (i in 0 until iterations) {
+                val res = vgg19.inputGradient(img, label)
+                logger.info("Iteration $i. Score - ${vgg19.score()}")
+                updater.applyUpdater(res, i, 0)
+                img = img.sub(res)
+                if (saveEvery.contains(i) || i + 1 == iterations) {
+                    val (height, width) = chooseReasonableSize(origHeight, origWidth)
+                    val newImg = imageLoader.resize(scaleTo255(img), width, height)
+                    val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
+                    logger.info("Saving [${outFilePath}]...")
+                    saveImage(outFilePath, newImg)
+                    logger.info("Saving done.")
                 }
-                val (height, width) = chooseReasonableSize(origHeight, origWidth)
-                val newImg = imageLoader.resize(scaleTo255(img), width, height)
-                val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
-                logger.info("Saving [${outFilePath}]...")
-                saveImage(outFilePath, newImg)
-                logger.info("Saving done.")
+
             }
         }
 
