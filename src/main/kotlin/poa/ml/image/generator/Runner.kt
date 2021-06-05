@@ -24,10 +24,11 @@ fun main(args: Array<String>) {
     val contentDir = args[0]
     val styleDir = args[1]
     val outDir = args[2]
-    val iterations = args.getOrElse(3) { "15" }.toInt()
-    val alpha = args.getOrElse(4) { "10.0" }.toDouble()
-    val betta = args.getOrElse(5) { "10.0" }.toDouble()
-    val lr = args.getOrElse(6) { "0.03" }.toDouble()
+    val iterations = args.getOrElse(3) { "50" }.toInt()
+    val saveEvery = args.getOrElse(4) { "10" }.toInt()
+    val alpha = args.getOrElse(5) { "10.0" }.toDouble()
+    val betta = args.getOrElse(6) { "10.0" }.toDouble()
+    val lr = args.getOrElse(7) { "0.03" }.toDouble()
 
 
     logger.info("Starting neural style transferring with parameters: ${args.toList()}")
@@ -65,19 +66,21 @@ fun main(args: Array<String>) {
 
             var img = resizedContent.add(0.0)
 
-            for (i in 0 until iterations) {
-                logger.info("Iteration $i")
-                val res = vgg19.inputGradient(img, label)
-                updater.applyUpdater(res, i, 0)
-                img = img.sub(res)
+            for (i in 0 until iterations / saveEvery) {
+                for (j in 0 until saveEvery) {
+                    val ij = (i * 5) + j
+                    val res = vgg19.inputGradient(img, label)
+                    logger.info("Iteration $ij. Score - ${vgg19.score()}")
+                    updater.applyUpdater(res, ij, 0)
+                    img = img.sub(res)
+                }
+                val (height, width) = chooseReasonableSize(origHeight, origWidth)
+                val newImg = imageLoader.resize(scaleTo255(img), width, height)
+                val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
+                logger.info("Saving [${outFilePath}]...")
+                saveImage(outFilePath, newImg)
+                logger.info("Saving done.")
             }
-
-            val (height, width) = chooseReasonableSize(origHeight, origWidth)
-            val newImg = imageLoader.resize(scaleTo255(img), width, height)
-            val outFilePath = "${outDir}/${f.nameWithoutExtension}-${styleName}.jpg"
-            logger.info("Saving [${outFilePath}]...")
-            saveImage(outFilePath, newImg)
-            logger.info("Saving done.")
         }
 
     }

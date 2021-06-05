@@ -11,9 +11,9 @@ class RunnerTest {
         val out = "/Users/oleg1024/Downloads/out"
 
         val alpha = "10"
-        val betta = "10"
+        val betta = "40"
 
-        main(arrayOf(content, style, out, "15", alpha, betta))
+        main(arrayOf(content, style, out, "50", "10", alpha, betta))
 
     }
 }

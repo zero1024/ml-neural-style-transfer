@@ -8,6 +8,8 @@ interface NeuralTransferModel {
 
     fun toLabel(contentImg: INDArray, styleImg: INDArray): INDArray
 
+    fun score(): Double
+
 }
 
 

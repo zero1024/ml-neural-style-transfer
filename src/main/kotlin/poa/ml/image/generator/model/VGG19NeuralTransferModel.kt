@@ -129,6 +129,8 @@ class VGG19NeuralTransferModel(
         }
     }
 
+    override fun score() = model.score()
+
     override fun inputGradient(img: INDArray, label: INDArray): INDArray {
         model.fit(arrayOf(img), arrayOf(label))
         return inputGradient!!
