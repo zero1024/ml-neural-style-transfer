@@ -13,19 +13,16 @@ import org.deeplearning4j.nn.graph.vertex.BaseWrapperVertex
 import org.deeplearning4j.nn.graph.vertex.impl.LayerVertex
 import org.deeplearning4j.nn.layers.AbstractLayer
 import org.deeplearning4j.nn.layers.FrozenLayerWithBackprop
-import org.deeplearning4j.nn.modelimport.keras.KerasModelImport
 import org.deeplearning4j.nn.transferlearning.FineTuneConfiguration
 import org.deeplearning4j.nn.transferlearning.TransferLearning
 import org.deeplearning4j.nn.workspace.LayerWorkspaceMgr
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener
+import org.deeplearning4j.zoo.model.Darknet19
 import org.nd4j.autodiff.loss.LossReduce
 import org.nd4j.autodiff.samediff.SDVariable
 import org.nd4j.autodiff.samediff.SameDiff
-import org.nd4j.common.io.ClassPathResource
 import org.nd4j.common.primitives.Pair
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
-import org.nd4j.linalg.indexing.NDArrayIndex
 import org.nd4j.linalg.indexing.NDArrayIndex.*
 import org.nd4j.linalg.indexing.conditions.GreaterThan
 import org.nd4j.linalg.indexing.conditions.LessThan
@@ -38,8 +35,7 @@ import poa.ml.image.generator.model.layer.StyleNeuralTransferLayerInfo
 import poa.ml.image.generator.resize
 import kotlin.math.pow
 
-class VGG19NeuralTransferModel(
-    vgg19path: String,
+class DarknetNeuralTransferModel(
     mb: Long = 1,
     private val alpha: Double = 10.0,
     private val betta: Double = 10.0,
@@ -50,22 +46,24 @@ class VGG19NeuralTransferModel(
     private var inputGradient: INDArray? = null
     private val model: ComputationGraph
 
-    private val width = 400L
-    private val height = 400L
+    private val width = 448L
+    private val height = 448L
     private val nChannels = 3L
-    private val contentLayer = ContentNeuralTransferLayerInfo("block5_conv4", 25, 25, 512)
+
+    private val contentLayer = ContentNeuralTransferLayerInfo("conv2d_18", 14, 14, 1024)
     private val stylesLayers = listOf(
-        StyleNeuralTransferLayerInfo("block1_conv1", 400, 400, 64),
-        StyleNeuralTransferLayerInfo("block2_conv1", 200, 200, 128),
-        StyleNeuralTransferLayerInfo("block3_conv1", 100, 100, 256),
-        StyleNeuralTransferLayerInfo("block4_conv1", 50, 50, 512),
-        StyleNeuralTransferLayerInfo("block5_conv1", 25, 25, 512)
+        StyleNeuralTransferLayerInfo("conv2d_2", 224, 224, 64),
+        StyleNeuralTransferLayerInfo("conv2d_5", 112, 112, 128),
+        StyleNeuralTransferLayerInfo("conv2d_8", 56, 56, 256),
+        StyleNeuralTransferLayerInfo("conv2d_11", 28, 28, 512),
+        StyleNeuralTransferLayerInfo("conv2d_16", 14, 14, 1024)
     )
 
     init {
 
-        val modelHdf5Filename = ClassPathResource(vgg19path).file.path
-        val pretrained = KerasModelImport.importKerasModelAndWeights(modelHdf5Filename)
+        val pretrained =
+            Darknet19.builder().inputShape(intArrayOf(nChannels.toInt(), width.toInt(), height.toInt())).build()
+                .initPretrained() as ComputationGraph
 
         val preBuild = TransferLearning.GraphBuilder(pretrained)
             .fineTuneConfiguration(FineTuneConfiguration.Builder().build())
@@ -75,7 +73,12 @@ class VGG19NeuralTransferModel(
                 nChannels,
                 CNN2DFormat.NCHW
             ))
-            .removeVertexKeepConnections("block5_pool")
+            .removeVertexAndConnections("globalpooling")
+            .removeVertexAndConnections("softmax")
+            .removeVertexAndConnections("loss")
+            .removeVertexAndConnections("conv2d_19")
+            .removeVertexAndConnections("leaky_re_lu_18")
+            .removeVertexAndConnections("batch_normalization_18")
 
         for (l in stylesLayers) {
             preBuild.addLayer(
@@ -118,7 +121,21 @@ class VGG19NeuralTransferModel(
             if (vertex is LayerVertex) {
                 val field = vertex::class.java.getDeclaredField("layer")
                 field.isAccessible = true
-                field.set(vertex, FrozenLayerWithBackprop(vertex.layer))
+                field.set(vertex, object : FrozenLayerWithBackprop(vertex.layer) {
+
+                    override fun activate(training: Boolean, workspaceMgr: LayerWorkspaceMgr?): INDArray {
+                        return underlying.activate(true, workspaceMgr)
+                    }
+
+                    override fun activate(
+                        input: INDArray?,
+                        training: Boolean,
+                        workspaceMgr: LayerWorkspaceMgr?,
+                    ): INDArray {
+                        return underlying.activate(input, true, workspaceMgr)
+                    }
+
+                })
             }
         }
 
@@ -139,6 +156,11 @@ class VGG19NeuralTransferModel(
         res[all(), point(0), all(), all()].divi(255)
         res[all(), point(1), all(), all()].divi(255)
         res[all(), point(2), all(), all()].divi(255)
+
+        val tmp = res[all(), point(0), all(), all()].add(0.0)
+        res[all(), point(0), all(), all()].assign(res[all(), point(2), all(), all()])
+        res[all(), point(2), all(), all()].assign(tmp)
+
         return res
     }
 
@@ -149,6 +171,11 @@ class VGG19NeuralTransferModel(
         res[all(), point(2), all(), all()].muli(255)
         res.replaceWhere(Nd4j.create(*res.shape()).assign(255), GreaterThan(255))
         res.replaceWhere(Nd4j.create(*res.shape()).assign(0), LessThan(0))
+
+        val tmp = res[all(), point(0), all(), all()].add(0.0)
+        res[all(), point(0), all(), all()].assign(res[all(), point(2), all(), all()])
+        res[all(), point(2), all(), all()].assign(tmp)
+
         return res
     }
 
@@ -164,14 +191,14 @@ class VGG19NeuralTransferModel(
 
         val (contentSlice, styleSlices) = contentAndStyles()
 
-        val styleActivations = model.feedForward(styleImg, false)
+        val styleActivations = model.feedForward(styleImg, true)
         for (styleSlice in styleSlices) {
             val styleLabel = styleActivations[styleSlice.info.flattenLayerName()]
             label2D[all(), interval(styleSlice.beginIdx, styleSlice.tillIdx)]
                 .assign(styleLabel)
         }
 
-        val contentActivations = model.feedForward(contentImg, false)
+        val contentActivations = model.feedForward(contentImg, true)
         val contentLabel = contentActivations[contentSlice.info.flattenLayerName()]
         label2D[all(), interval(contentSlice.beginIdx, contentSlice.tillIdx)]
             .assign(contentLabel)

@@ -5,7 +5,7 @@ import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
-import poa.ml.image.generator.model.VGG19NeuralTransferModel
+import poa.ml.image.generator.model.DarknetNeuralTransferModel
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.awt.image.BufferedImage.TYPE_INT_RGB
@@ -30,7 +30,7 @@ fun main(args: Array<String>) {
     logger.info("Starting neural style transferring with parameters: ${args.toList()}")
 
     val imageLoader = NativeImageLoader()
-    val vgg19 = VGG19NeuralTransferModel("vgg_19.h5", alpha = alpha, betta = betta)
+    val vgg19 = DarknetNeuralTransferModel(alpha = alpha, betta = betta)
 
     logger.info("Loading styles...")
     val styles = mutableMapOf<String, INDArray>()
