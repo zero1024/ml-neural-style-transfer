@@ -3,6 +3,7 @@ package poa.ml.image.generator
 import org.datavec.image.loader.NativeImageLoader
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
+import org.nd4j.linalg.learning.GradientUpdater
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
 import poa.ml.image.generator.model.DarknetNeuralTransferModel
@@ -30,13 +31,13 @@ fun main(args: Array<String>) {
     logger.info("Starting neural style transferring with parameters: ${args.toList()}")
 
     val imageLoader = NativeImageLoader()
-    val vgg19 = DarknetNeuralTransferModel(alpha = alpha, betta = betta)
+    val model = DarknetNeuralTransferModel(alpha = alpha, betta = betta)
 
     logger.info("Loading styles...")
     val styles = mutableMapOf<String, INDArray>()
     walkFileTree(styleDir) { f ->
         val style = imageLoader.asMatrix(f)
-        val resizedStyle = vgg19.scaleForModel(style)
+        val resizedStyle = model.scaleForModel(style)
         styles[f.nameWithoutExtension] = resizedStyle
     }
     logger.info("Styles ${styles.keys} are loaded.")
@@ -47,37 +48,39 @@ fun main(args: Array<String>) {
         val content = imageLoader.asMatrix(f)
         val origHeight = content.size(2).toInt()
         val origWidth = content.size(3).toInt()
-        val resizedContent = vgg19.scaleForModel(content)
+        val (height, width) = chooseReasonableSize(origHeight, origWidth)
+        val resizedContent = model.scaleForModel(content)
 
         for ((styleName, style) in styles) {
             logger.info("Applying style [${styleName}] to [${f.nameWithoutExtension}]")
-            val label = vgg19.toLabel(resizedContent, style)
-            val updater =
-                Adam(lr).instantiate(mapOf(
-                    "M" to Nd4j.create(*resizedContent.shape()),
-                    "V" to Nd4j.create(*resizedContent.shape())),
-                    true)
+            val label = model.toLabel(resizedContent, style)
+            val updater = adamUpdater(lr, resizedContent.shape())
 
             var img = resizedContent.add(0.0)
 
             for (i in 0 until iterations) {
-                val res = vgg19.inputGradient(img, label)
-                logger.info("Iteration $i. Score - ${vgg19.score()}")
+                val res = model.inputGradient(img, label)
+                logger.info("Iteration $i. Score - ${model.score()}")
                 updater.applyUpdater(res, i, 0)
                 img = img.sub(res)
                 if (saveEvery.contains(i) || i + 1 == iterations) {
-                    val (height, width) = chooseReasonableSize(origHeight, origWidth)
-                    val newImg = vgg19.rescaleBack(img, width, height)
+
+                    val newImg = model.rescaleBack(img, width, height)
                     val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
                     logger.info("Saving [${outFilePath}]...")
                     saveImage(outFilePath, newImg)
                     logger.info("Saving done.")
                 }
-
             }
         }
-
     }
+}
+
+private fun adamUpdater(lr: Double, shape: LongArray): GradientUpdater<*> {
+    return Adam(lr).instantiate(mapOf(
+        "M" to Nd4j.create(*shape),
+        "V" to Nd4j.create(*shape)),
+        true)
 }
 
 private fun chooseReasonableSize(height: Int, width: Int): Pair<Int, Int> {
@@ -86,7 +89,6 @@ private fun chooseReasonableSize(height: Int, width: Int): Pair<Int, Int> {
     val scale: Double = minSize.toDouble() / reasonableMax
     return (height.toDouble() / scale).toInt() to (width.toDouble() / scale).toInt()
 }
-
 
 private fun saveImage(path: String, img: INDArray) {
     val height = img.size(2).toInt()
