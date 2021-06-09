@@ -1,5 +1,6 @@
 package poa.ml.image.generator
 
+import org.bytedeco.opencv.opencv_core.Mat
 import org.datavec.image.loader.NativeImageLoader
 import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.factory.Nd4j
@@ -7,11 +8,6 @@ import org.nd4j.linalg.learning.GradientUpdater
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
 import poa.ml.image.generator.model.DarknetNeuralTransferModel
-import java.awt.Color
-import java.awt.image.BufferedImage
-import java.awt.image.BufferedImage.TYPE_INT_RGB
-import java.io.File
-import javax.imageio.ImageIO
 import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("main")
@@ -68,7 +64,7 @@ fun main(args: Array<String>) {
                     val newImg = model.rescaleBack(img, width, height)
                     val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
                     logger.info("Saving [${outFilePath}]...")
-                    saveImage(outFilePath, newImg)
+                    saveImage(outFilePath, imageLoader.asMat(newImg))
                     logger.info("Saving done.")
                 }
             }
@@ -90,19 +86,6 @@ private fun chooseReasonableSize(height: Int, width: Int): Pair<Int, Int> {
     return (height.toDouble() / scale).toInt() to (width.toDouble() / scale).toInt()
 }
 
-private fun saveImage(path: String, img: INDArray) {
-    val height = img.size(2).toInt()
-    val width = img.size(3).toInt()
-    val bufImage = BufferedImage(width, height, TYPE_INT_RGB)
-
-    for (w in 0 until width) {
-        for (h in 0 until height) {
-            val r = img.getScalar(0, 0, h, w).maxNumber().toInt()
-            val g = img.getScalar(0, 1, h, w).maxNumber().toInt()
-            val b = img.getScalar(0, 2, h, w).maxNumber().toInt()
-            bufImage.setRGB(w, h, Color(b, g, r).rgb)
-        }
-    }
-
-    ImageIO.write(bufImage, "jpg", File(path))
+private fun saveImage(path: String, img: Mat) {
+    org.bytedeco.opencv.global.opencv_imgcodecs.imwrite(path, img)
 }

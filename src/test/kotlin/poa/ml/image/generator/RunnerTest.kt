@@ -13,7 +13,7 @@ class RunnerTest {
         val alpha = "10"
         val betta = "40"
 
-        main(arrayOf(content, style, out, "10", "1.5.15.30.50", alpha, betta, "0.03"))
+        main(arrayOf(content, style, out, "100", "1.5.15.30.50", alpha, betta, "0.03"))
 
     }
 }
