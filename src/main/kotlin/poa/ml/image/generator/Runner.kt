@@ -17,15 +17,28 @@ fun main(args: Array<String>) {
     val contentDir = args[0]
     val styleDir = args[1]
     val outDir = args[2]
-    val iterations = args.getOrElse(3) { "50" }.toInt()
-    val saveEvery = args.getOrElse(4) { "" }.split(".").map { it.toInt() }
-    val alpha = args.getOrElse(5) { "10.0" }.toDouble()
-    val betta = args.getOrElse(6) { "10.0" }.toDouble()
-    val lr = args.getOrElse(7) { "0.03" }.toDouble()
-
+    val iterations = args.getOrElse(3) { "50" }.split(",").map { it.toInt() }
+    val alpha = args.getOrElse(4) { "10.0" }.toDouble()
+    val bettaList = args.getOrElse(5) { "40.0" }.split(",").map { it.toDouble() }
+    val lr = args.getOrElse(6) { "0.03" }.toDouble()
 
     logger.info("Starting neural style transferring with parameters: ${args.toList()}")
 
+    for (betta in bettaList) {
+        logger.info("Starting neural style transferring with betta = $betta")
+        run(alpha, betta, styleDir, contentDir, lr, iterations, outDir)
+    }
+}
+
+private fun run(
+    alpha: Double,
+    betta: Double,
+    styleDir: String,
+    contentDir: String,
+    lr: Double,
+    iterations: List<Int>,
+    outDir: String,
+) {
     val imageLoader = NativeImageLoader()
     val model = DarknetNeuralTransferModel(alpha = alpha, betta = betta)
 
@@ -54,15 +67,14 @@ fun main(args: Array<String>) {
 
             var img = resizedContent.add(0.0)
 
-            for (i in 0 until iterations) {
+            for (i in 0..iterations.last()) {
                 val res = model.inputGradient(img, label)
                 logger.info("Iteration $i. Score - ${model.score()}")
                 updater.applyUpdater(res, i, 0)
                 img = img.sub(res)
-                if (saveEvery.contains(i) || i + 1 == iterations) {
-
+                if (iterations.contains(i)) {
                     val newImg = model.rescaleBack(img, width, height)
-                    val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}.jpg"
+                    val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}_betta_$betta.jpg"
                     logger.info("Saving [${outFilePath}]...")
                     saveImage(outFilePath, imageLoader.asMat(newImg))
                     logger.info("Saving done.")
