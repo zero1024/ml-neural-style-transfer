@@ -11,9 +11,9 @@ class RunnerTest {
         val out = "/Users/oleg1024/Downloads/out_portrait2"
 
         val alpha = "10"
-        val betta = "40"
+        val betta = "0.1,1,10,40"
 
-        val styleWeights = "50,0,0,0,0;0,0,50,0,0;0,0,0,0,50"
+        val styleWeights = "0.1,0.2,0.3,0.4,0.5;0.5,0.4,0.3,0.2,0.1;0.3,0.4,0.5,0.4,0.3"
 
         main(arrayOf(content, style, out, "5,15,100", alpha, betta, "0.03", styleWeights))
 

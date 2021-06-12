@@ -26,14 +26,12 @@ import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.indexing.NDArrayIndex.*
 import org.nd4j.linalg.indexing.conditions.GreaterThan
 import org.nd4j.linalg.indexing.conditions.LessThan
-import poa.ml.image.generator.applyMask
 import poa.ml.image.generator.model.conf.GramMatrixLayerConf
 import poa.ml.image.generator.model.conf.SameDiffLambdaOutputLayerConf
 import poa.ml.image.generator.model.layer.ContentNeuralTransferLayerInfo
 import poa.ml.image.generator.model.layer.NeuralTransferLayerInfo
 import poa.ml.image.generator.model.layer.StyleNeuralTransferLayerInfo
 import poa.ml.image.generator.resize
-import kotlin.math.pow
 
 class DarknetNeuralTransferModel(
     mb: Long = 1,
@@ -221,23 +219,21 @@ class DarknetNeuralTransferModel(
     private fun score(sameDiff: SameDiff, input: SDVariable, labels: SDVariable): SDVariable {
         val (content, styles) = contentAndStyles()
 
+        val contentWeights = sameDiff.`var`(content.mask).mul(alpha)
         var res = sameDiff.loss.meanSquaredError(
-            sameDiff.applyMask(labels, content.mask),
-            sameDiff.applyMask(input, content.mask),
-            null,
-            LossReduce.SUM)
-            .mul(alpha)
-            .div(content.info.flattenLayerSize() * 4.0)
+            labels,
+            input,
+            contentWeights,
+            LossReduce.MEAN_BY_NONZERO_WEIGHT_COUNT)
 
         for (style in styles) {
+            val styleWeights =
+                sameDiff.`var`(style.mask).mul(betta).mul((style.info as StyleNeuralTransferLayerInfo).weight)
             val styleRes = sameDiff.loss.meanSquaredError(
-                sameDiff.applyMask(labels, style.mask),
-                sameDiff.applyMask(input, style.mask),
-                null,
-                LossReduce.SUM)
-                .mul((style.info as StyleNeuralTransferLayerInfo).weight)
-                .mul(betta)
-                .div((0.0 + style.info.height * style.info.width * style.info.nChannels).pow(2.0) * 4.0)
+                labels,
+                input,
+                styleWeights,
+                LossReduce.MEAN_BY_NONZERO_WEIGHT_COUNT)
             res = res.add(styleRes)
         }
 

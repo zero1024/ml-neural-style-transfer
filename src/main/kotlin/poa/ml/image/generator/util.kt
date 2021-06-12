@@ -26,8 +26,6 @@ fun SameDiff.convGramMatrix(mb: Long = 0, input: SDVariable): SDVariable {
     return this.stack(0, *gramMatrices)
 }
 
-fun SameDiff.applyMask(sdVariable: SDVariable, mask: INDArray): SDVariable = sdVariable.mul(`var`(mask))
-
 fun walkFileTree(path: String, lambda: (File) -> Unit) {
     Files.walkFileTree(Path.of(path), object : SimpleFileVisitor<Path>() {
         override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
