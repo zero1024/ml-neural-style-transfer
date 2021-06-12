@@ -21,12 +21,21 @@ fun main(args: Array<String>) {
     val alpha = args.getOrElse(4) { "10.0" }.toDouble()
     val bettaList = args.getOrElse(5) { "40.0" }.split(",").map { it.toDouble() }
     val lr = args.getOrElse(6) { "0.03" }.toDouble()
+    val styleWeights =
+        args.getOrElse(7) { "0.2,0.2,0.2,0.2,0.2" }.split(";")
+            .map { a -> a.split(",").map { n -> n.toDouble() } }
+
+    //todo validation
+    assert(styleWeights.isNotEmpty())
+    styleWeights.forEach { assert(it.size == 5) }
 
     logger.info("Starting neural style transferring with parameters: ${args.toList()}")
 
     for (betta in bettaList) {
-        logger.info("Starting neural style transferring with betta = $betta")
-        run(alpha, betta, styleDir, contentDir, lr, iterations, outDir)
+        for (styleWeight in styleWeights) {
+            logger.info("Starting neural style transferring with betta = $betta and style weights = $styleWeight")
+            run(alpha, betta, styleDir, contentDir, lr, iterations, outDir, styleWeight)
+        }
     }
 }
 
@@ -38,9 +47,10 @@ private fun run(
     lr: Double,
     iterations: List<Int>,
     outDir: String,
+    styleWeight: List<Double>,
 ) {
     val imageLoader = NativeImageLoader()
-    val model = DarknetNeuralTransferModel(alpha = alpha, betta = betta)
+    val model = DarknetNeuralTransferModel(alpha = alpha, betta = betta, styleWeighs = styleWeight.toDoubleArray())
 
     logger.info("Loading styles...")
     val styles = mutableMapOf<String, INDArray>()
@@ -74,7 +84,8 @@ private fun run(
                 img = img.sub(res)
                 if (iterations.contains(i)) {
                     val newImg = model.rescaleBack(img, width, height)
-                    val outFilePath = "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}_betta_$betta.jpg"
+                    val outFilePath =
+                        "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}_betta_${betta}_sw_${styleWeight}.jpg"
                     logger.info("Saving [${outFilePath}]...")
                     saveImage(outFilePath, imageLoader.asMat(newImg))
                     logger.info("Saving done.")

@@ -37,6 +37,7 @@ import kotlin.math.pow
 
 class DarknetNeuralTransferModel(
     mb: Long = 1,
+    styleWeighs: DoubleArray = doubleArrayOf(0.2, 0.2, 0.2, 0.2, 0.2),
     private val alpha: Double = 10.0,
     private val betta: Double = 10.0,
 ) : NeuralTransferModel {
@@ -52,11 +53,11 @@ class DarknetNeuralTransferModel(
 
     private val contentLayer = ContentNeuralTransferLayerInfo("conv2d_18", 14, 14, 1024)
     private val stylesLayers = listOf(
-        StyleNeuralTransferLayerInfo("conv2d_2", 224, 224, 64),
-        StyleNeuralTransferLayerInfo("conv2d_5", 112, 112, 128),
-        StyleNeuralTransferLayerInfo("conv2d_8", 56, 56, 256),
-        StyleNeuralTransferLayerInfo("conv2d_11", 28, 28, 512),
-        StyleNeuralTransferLayerInfo("conv2d_16", 14, 14, 1024)
+        StyleNeuralTransferLayerInfo("conv2d_2", 224, 224, 64, weight = styleWeighs[0]),
+        StyleNeuralTransferLayerInfo("conv2d_5", 112, 112, 128, weight = styleWeighs[1]),
+        StyleNeuralTransferLayerInfo("conv2d_8", 56, 56, 256, weight = styleWeighs[2]),
+        StyleNeuralTransferLayerInfo("conv2d_11", 28, 28, 512, weight = styleWeighs[3]),
+        StyleNeuralTransferLayerInfo("conv2d_16", 14, 14, 1024, weight = styleWeighs[4])
     )
 
     init {
