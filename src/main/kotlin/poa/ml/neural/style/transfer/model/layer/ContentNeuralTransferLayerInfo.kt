@@ -1,4 +1,4 @@
-package poa.ml.image.generator.model.layer
+package poa.ml.neural.style.transfer.model.layer
 
 class ContentNeuralTransferLayerInfo(
     name: String,

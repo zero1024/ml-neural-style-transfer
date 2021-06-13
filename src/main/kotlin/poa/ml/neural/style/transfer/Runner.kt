@@ -1,4 +1,4 @@
-package poa.ml.image.generator
+package poa.ml.neural.style.transfer
 
 import org.bytedeco.opencv.opencv_core.Mat
 import org.datavec.image.loader.NativeImageLoader
@@ -7,7 +7,7 @@ import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.learning.GradientUpdater
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
-import poa.ml.image.generator.model.DarknetNeuralTransferModel
+import poa.ml.neural.style.transfer.model.DarknetNeuralTransferModel
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.math.min

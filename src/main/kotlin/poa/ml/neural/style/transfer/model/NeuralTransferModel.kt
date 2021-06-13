@@ -1,4 +1,4 @@
-package poa.ml.image.generator.model
+package poa.ml.neural.style.transfer.model
 
 import org.nd4j.linalg.api.ndarray.INDArray
 

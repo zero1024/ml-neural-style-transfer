@@ -1,10 +1,10 @@
-package poa.ml.image.generator.model.conf
+package poa.ml.neural.style.transfer.model.conf
 
 import org.deeplearning4j.nn.conf.inputs.InputType
 import org.deeplearning4j.nn.conf.layers.samediff.SameDiffLambdaLayer
 import org.nd4j.autodiff.samediff.SDVariable
 import org.nd4j.autodiff.samediff.SameDiff
-import poa.ml.image.generator.convGramMatrix
+import poa.ml.neural.style.transfer.convGramMatrix
 
 class GramMatrixLayerConf(private val mb: Long = 1) : SameDiffLambdaLayer() {
 

@@ -1,4 +1,4 @@
-package poa.ml.image.generator.model
+package poa.ml.neural.style.transfer.model
 
 import org.datavec.image.loader.NativeImageLoader
 import org.deeplearning4j.nn.conf.CNN2DFormat
@@ -26,12 +26,12 @@ import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.indexing.NDArrayIndex.*
 import org.nd4j.linalg.indexing.conditions.GreaterThan
 import org.nd4j.linalg.indexing.conditions.LessThan
-import poa.ml.image.generator.model.conf.GramMatrixLayerConf
-import poa.ml.image.generator.model.conf.SameDiffLambdaOutputLayerConf
-import poa.ml.image.generator.model.layer.ContentNeuralTransferLayerInfo
-import poa.ml.image.generator.model.layer.NeuralTransferLayerInfo
-import poa.ml.image.generator.model.layer.StyleNeuralTransferLayerInfo
-import poa.ml.image.generator.resize
+import poa.ml.neural.style.transfer.model.conf.GramMatrixLayerConf
+import poa.ml.neural.style.transfer.model.conf.SameDiffLambdaOutputLayerConf
+import poa.ml.neural.style.transfer.model.layer.ContentNeuralTransferLayerInfo
+import poa.ml.neural.style.transfer.model.layer.NeuralTransferLayerInfo
+import poa.ml.neural.style.transfer.model.layer.StyleNeuralTransferLayerInfo
+import poa.ml.neural.style.transfer.resize
 
 class DarknetNeuralTransferModel(
     mb: Long = 1,

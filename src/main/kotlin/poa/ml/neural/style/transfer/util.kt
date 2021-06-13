@@ -1,4 +1,4 @@
-package poa.ml.image.generator
+package poa.ml.neural.style.transfer
 
 import org.bytedeco.opencv.global.opencv_imgproc
 import org.bytedeco.opencv.opencv_core.Size

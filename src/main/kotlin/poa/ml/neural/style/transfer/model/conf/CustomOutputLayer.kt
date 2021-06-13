@@ -1,4 +1,4 @@
-package poa.ml.image.generator.model.conf
+package poa.ml.neural.style.transfer.model.conf
 
 import org.deeplearning4j.nn.conf.inputs.InputType
 import org.deeplearning4j.nn.conf.layers.samediff.SDLayerParams

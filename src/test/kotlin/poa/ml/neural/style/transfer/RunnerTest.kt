@@ -1,4 +1,4 @@
-package poa.ml.image.generator
+package poa.ml.neural.style.transfer
 
 import org.junit.jupiter.api.Test
 

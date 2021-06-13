@@ -1,4 +1,4 @@
-package poa.ml.image.generator.model.layer
+package poa.ml.neural.style.transfer.model.layer
 
 abstract class NeuralTransferLayerInfo(
     val name: String,

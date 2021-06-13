@@ -3,7 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.jvm' version '1.5.10'
 }
 
-group 'org.example'
+group 'poa.ml.neural.style.transfer'
 version '1.0-SNAPSHOT'
 
 repositories {
@@ -11,12 +11,15 @@ repositories {
 }
 
 dependencies {
-    compile "ch.qos.logback:logback-classic:1.1.7"
-    compile 'org.deeplearning4j:deeplearning4j-zoo:1.0.0-beta7'
-    compile "org.nd4j:nd4j-native:1.0.0-beta7:macosx-x86_64-avx2"
-    implementation "org.nd4j:nd4j-native-platform:1.0.0-beta7"
+    implementation "ch.qos.logback:logback-classic:1.1.7"
+
     implementation "org.deeplearning4j:deeplearning4j-core:1.0.0-beta7"
+    implementation 'org.deeplearning4j:deeplearning4j-zoo:1.0.0-beta7'
+    implementation "org.nd4j:nd4j-native-platform:1.0.0-beta7"
+    implementation "org.nd4j:nd4j-native:1.0.0-beta7:macosx-x86_64-avx2"
+
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
+
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
 }
