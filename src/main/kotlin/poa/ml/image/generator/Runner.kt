@@ -8,6 +8,8 @@ import org.nd4j.linalg.learning.GradientUpdater
 import org.nd4j.linalg.learning.config.Adam
 import org.slf4j.LoggerFactory
 import poa.ml.image.generator.model.DarknetNeuralTransferModel
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.math.min
 
 private val logger = LoggerFactory.getLogger("main")
@@ -69,9 +71,19 @@ private fun run(
         val origWidth = content.size(3).toInt()
         val (height, width) = chooseReasonableSize(origHeight, origWidth)
         val resizedContent = model.scaleForModel(content)
+        val contentName = f.nameWithoutExtension
 
         for ((styleName, style) in styles) {
-            logger.info("Applying style [${styleName}] to [${f.nameWithoutExtension}]")
+
+            val allFilesExist = iterations
+                .map { outFileName(outDir, contentName, styleName, it, betta, styleWeight) }
+                .all { Files.exists(Path.of(it)) }
+            if (allFilesExist) {
+                logger.info("File [$contentName] with style [${styleName}] already exist. Moving forward. ")
+                continue
+            }
+
+            logger.info("Applying style [${styleName}] to [$contentName]")
             val label = model.toLabel(resizedContent, style)
             val updater = adamUpdater(lr, resizedContent.shape())
 
@@ -83,9 +95,8 @@ private fun run(
                 updater.applyUpdater(res, i, 0)
                 img = img.sub(res)
                 if (iterations.contains(i)) {
+                    val outFilePath = outFileName(outDir, contentName, styleName, i, betta, styleWeight)
                     val newImg = model.rescaleBack(img, width, height)
-                    val outFilePath =
-                        "${outDir}/${f.nameWithoutExtension}_${styleName}_iter_${i}_betta_${betta}_sw_${styleWeight}.jpg"
                     logger.info("Saving [${outFilePath}]...")
                     saveImage(outFilePath, imageLoader.asMat(newImg))
                     logger.info("Saving done.")
@@ -93,6 +104,17 @@ private fun run(
             }
         }
     }
+}
+
+private fun outFileName(
+    outDir: String,
+    fileName: String,
+    styleName: String,
+    i: Int,
+    betta: Double,
+    styleWeight: List<Double>,
+): String {
+    return "${outDir}/${fileName}_${styleName}_iter_${i}_betta_${betta}_sw_${styleWeight}.jpg"
 }
 
 private fun adamUpdater(lr: Double, shape: LongArray): GradientUpdater<*> {

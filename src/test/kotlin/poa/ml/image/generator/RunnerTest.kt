@@ -6,16 +6,18 @@ class RunnerTest {
 
     @Test
     internal fun testRunner() {
-        val content = "/Users/oleg1024/Downloads/content_portrait2"
-        val style = "/Users/oleg1024/Downloads/style_portrait2"
-        val out = "/Users/oleg1024/Downloads/out_portrait2"
+        val content = "/Users/oleg1024/Downloads/content_new"
+        val style = "/Users/oleg1024/Downloads/style_new"
+        val out = "/Users/oleg1024/Downloads/out_new"
 
         val alpha = "10"
-        val betta = "0.1,1,10,40"
+        val betta = "0.00001,10"
 
-        val styleWeights = "0.1,0.2,0.3,0.4,0.5;0.5,0.4,0.3,0.2,0.1;0.3,0.4,0.5,0.4,0.3"
+        val styleWeights = "0.1,0.3,1.0,3.0,10.0;" +
+                "0.2,0.2,0.2,0.2,0.2;" +
+                "10.0,3.0,1.0,0.3,0.1"
 
-        main(arrayOf(content, style, out, "5,15,100", alpha, betta, "0.03", styleWeights))
+        main(arrayOf(content, style, out, "15,50", alpha, betta, "0.03", styleWeights))
 
     }
 }
